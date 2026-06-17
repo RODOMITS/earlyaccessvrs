@@ -62,8 +62,8 @@ class DatabaseManager:
         self.Connection.commit()
 
 BotToken = "8631154236:AAG55jxFBv6k3EIZCIoaY8Vn0iwl-WmpR4E"
-ChannelId = "@GrowRussianGarden"
-ChannelLink = "https://t.me/GrowRussianGarden"
+ChannelId = "@GrowaRussianGarden"
+ChannelLink = "https://t.me/GrowaRussianGarden"
 
 ApplicationBot = Bot(token=BotToken)
 BotDispatcher = Dispatcher()
