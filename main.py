@@ -51,12 +51,23 @@ class DatabaseManager:
         self.Cursor.execute("DELETE FROM PendingReferrals WHERE GuestId = ?", (guest_id,))
         self.Connection.commit()
 
-def IncrementReferrals(self, inviter_id):
-        self.Cursor.execute("UPDATE Users SET ReferralsCount = ReferralsCount + 1 WHERE TelegramId = ?", (inviter_id,))
-        self.Connection.commit()
+    def IncrementReferrals(self, inviter_id):
+        # Сначала проверяем, есть ли такой юзер в базе
         self.Cursor.execute("SELECT ReferralsCount FROM Users WHERE TelegramId = ?", (inviter_id,))
-        Result = self.Cursor.fetchone()
-        return Result[0] if Result else 0
+        UserExists = self.Cursor.fetchone()
+        
+        if UserExists is None:
+            # Если юзера нет, создаем его
+            self.Cursor.execute("INSERT INTO Users (TelegramId, ReferralsCount) VALUES (?, 1)", (inviter_id, 1))
+            self.Connection.commit()
+            return 1
+        else:
+            # Если есть, обновляем
+            self.Cursor.execute("UPDATE Users SET ReferralsCount = ReferralsCount + 1 WHERE TelegramId = ?", (inviter_id,))
+            self.Connection.commit()
+            self.Cursor.execute("SELECT ReferralsCount FROM Users WHERE TelegramId = ?", (inviter_id,))
+            Result = self.Cursor.fetchone()
+            return Result[0] if Result else 0
 
     def SaveRobloxUsername(self, telegram_id, username):
         self.Cursor.execute("UPDATE Users SET RobloxUsername = ?, IsCompleted = 1 WHERE TelegramId = ?", (username, telegram_id))
