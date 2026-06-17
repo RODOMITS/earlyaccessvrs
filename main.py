@@ -51,11 +51,12 @@ class DatabaseManager:
         self.Cursor.execute("DELETE FROM PendingReferrals WHERE GuestId = ?", (guest_id,))
         self.Connection.commit()
 
-    def IncrementReferrals(self, inviter_id):
+def IncrementReferrals(self, inviter_id):
         self.Cursor.execute("UPDATE Users SET ReferralsCount = ReferralsCount + 1 WHERE TelegramId = ?", (inviter_id,))
         self.Connection.commit()
         self.Cursor.execute("SELECT ReferralsCount FROM Users WHERE TelegramId = ?", (inviter_id,))
-        return self.Cursor.fetchone()[0]
+        Result = self.Cursor.fetchone()
+        return Result[0] if Result else 0
 
     def SaveRobloxUsername(self, telegram_id, username):
         self.Cursor.execute("UPDATE Users SET RobloxUsername = ?, IsCompleted = 1 WHERE TelegramId = ?", (username, telegram_id))
