@@ -6,68 +6,42 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-class DatabaseManager:
-    def __init__(self, database_name="EarlyAccess.db"):
-        self.Connection = sqlite3.connect(database_name)
-        self.Cursor = self.Connection.cursor()
-        self.CreateTables()
-
-    def CreateTables(self):
-        self.Cursor.execute("""
-            CREATE TABLE IF NOT EXISTS Users (
-                TelegramId INTEGER PRIMARY KEY,
-                ReferralsCount INTEGER DEFAULT 0,
-                RobloxUsername TEXT DEFAULT NULL,
-                IsCompleted INTEGER DEFAULT 0
-            )
-        """)
-        self.Cursor.execute("""
-            CREATE TABLE IF NOT EXISTS PendingReferrals (
-                GuestId INTEGER PRIMARY KEY,
-                InviterId INTEGER
-            )
-        """)
-        self.Connection.commit()
-
-    def GetOrCreateUser(self, telegram_id):
-        self.Cursor.execute("SELECT ReferralsCount, RobloxUsername, IsCompleted FROM Users WHERE TelegramId = ?", (telegram_id,))
-        Result = self.Cursor.fetchone()
-        if not Result:
-            self.Cursor.execute("INSERT INTO Users (TelegramId) VALUES (?)", (telegram_id,))
-            self.Connection.commit()
-            return {"ReferralsCount": 0, "RobloxUsername": None, "IsCompleted": 0}
-        return {"ReferralsCount": Result[0], "RobloxUsername": Result[1], "IsCompleted": Result[2]}
-
-    def AddPendingReferral(self, guest_id, inviter_id):
-        self.Cursor.execute("INSERT OR REPLACE INTO PendingReferrals (GuestId, InviterId) VALUES (?, ?)", (guest_id, inviter_id))
-        self.Connection.commit()
-
-    def GetPendingInviter(self, guest_id):
-        self.Cursor.execute("SELECT InviterId FROM PendingReferrals WHERE GuestId = ?", (guest_id,))
-        Result = self.Cursor.fetchone()
-        return Result[0] if Result else None
-
-    def RemovePendingReferral(self, guest_id):
-        self.Cursor.execute("DELETE FROM PendingReferrals WHERE GuestId = ?", (guest_id,))
-        self.Connection.commit()
-
-    def IncrementReferrals(self, inviter_id):
-        self.Cursor.execute("SELECT ReferralsCount FROM Users WHERE TelegramId = ?", (inviter_id,))
-        UserExists = self.Cursor.fetchone()
-        if UserExists is None:
-            self.Cursor.execute("INSERT INTO Users (TelegramId, ReferralsCount) VALUES (?, 1)", (inviter_id, 1))
-            self.Connection.commit()
-            return 1
-        else:
-            self.Cursor.execute("UPDATE Users SET ReferralsCount = ReferralsCount + 1 WHERE TelegramId = ?", (inviter_id,))
-            self.Connection.commit()
-            self.Cursor.execute("SELECT ReferralsCount FROM Users WHERE TelegramId = ?", (inviter_id,))
-            Result = self.Cursor.fetchone()
-            return Result[0] if Result else 0
-
-    def SaveRobloxUsername(self, telegram_id, username):
-        self.Cursor.execute("UPDATE Users SET RobloxUsername = ?, IsCompleted = 1 WHERE TelegramId = ?", (username, telegram_id))
-        self.Connection.commit()
+@BotDispatcher.callback_query(F.data == "CheckSubscription")
+async def HandleSubscriptionCheck(callback_query: types.CallbackQuery, state: FSMContext):
+    UserId = callback_query.from_user.id
+    IsSubscribed = await CheckChannelSubscription(UserId)
+    
+    print(f"[DEBUG] Проверка подписки для {UserId}. Статус: {IsSubscribed}")
+    
+    if not IsSubscribed:
+        await callback_query.answer("Ты не подписался!", show_alert=True)
+        return
+        
+    InviterId = Database.GetPendingInviter(UserId)
+    print(f"[DEBUG] Найден пригласивший: {InviterId}")
+    
+    await callback_query.answer("Подписка подтверждена!", show_alert=False)
+    await callback_query.message.edit_text("Засчитано! ✅")
+    
+    if InviterId:
+        Database.RemovePendingReferral(UserId)
+        CurrentReferrals = Database.IncrementReferrals(InviterId)
+        print(f"[DEBUG] Реферал засчитан. У {InviterId} теперь {CurrentReferrals} приглашений.")
+        
+        # ... (остальной код уведомления пригласившего)
+        try:
+            InviterData = Database.GetOrCreateUser(InviterId)
+            if InviterData["IsCompleted"] == 0:
+                if CurrentReferrals >= 3:
+                    InviterState = BotDispatcher.fsm.resolve_context(ApplicationBot, InviterId, InviterId)
+                    await InviterState.set_state(BotStates.WaitingForRobloxUsername)
+                    await ApplicationBot.send_message(InviterId, "Ты пригласил все 3 человека! Напиши свой username из Роблокса!")
+                else:
+                    BotInformation = await ApplicationBot.get_me()
+                    InviteLink = f"https://t.me/{BotInformation.username}?start={InviterId}"
+                    await ApplicationBot.send_message(InviterId, f"По твоей ссылке зашёл новый человек! У тебя теперь {CurrentReferrals}/3")
+        except Exception as E:
+            print(f"[ERROR] Ошибка при отправке уведомления: {E}")
 
 BotToken = "8631154236:AAG55jxFBv6k3EIZCIoaY8Vn0iwl-WmpR4E"
 ChannelId = "@GrowaRussianGarden"
