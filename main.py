@@ -122,8 +122,8 @@ async def CheckChannelSubscription(UserId):
 
 
 @BotDispatcher.message(CommandStart())
-async def HandleStartCommand(Message: types.Message, State: FSMContext):
-    await State.clear()
+async def HandleStartCommand(Message: types.Message, state: FSMContext):
+    await state.clear()
     UserId = Message.from_user.id
     BotInformation = await ApplicationBot.get_me()
     BotUsername = BotInformation.username
@@ -164,7 +164,7 @@ async def HandleStartCommand(Message: types.Message, State: FSMContext):
 
 
 @BotDispatcher.callback_query(F.data == "CheckSubscription")
-async def HandleSubscriptionCheck(CallbackQuery: types.CallbackQuery, State: FSMContext):
+async def HandleSubscriptionCheck(CallbackQuery: types.CallbackQuery, state: FSMContext):
     UserId = CallbackQuery.from_user.id
     IsSubscribed = await CheckChannelSubscription(UserId)
 
@@ -204,12 +204,12 @@ async def HandleSubscriptionCheck(CallbackQuery: types.CallbackQuery, State: FSM
 
 
 @BotDispatcher.message(BotStates.WaitingForRobloxUsername)
-async def HandleRobloxUsernameInput(Message: types.Message, State: FSMContext):
+async def HandleRobloxUsernameInput(Message: types.Message, state: FSMContext):
     RobloxName = Message.text.strip()
     UserId = Message.from_user.id
 
     Database.SaveRobloxUsername(UserId, RobloxName)
-    await State.clear()
+    await state.clear()
 
     await Message.answer(
         f"Твой ник вписан в список раннего доступа! ✅\n\n"
